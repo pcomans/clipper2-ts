@@ -9,7 +9,7 @@
  */
 import { describe, test, expect } from 'vitest';
 import {
-  booleanOp, booleanOpWithPolyTree, area,
+  booleanOp, booleanOpWithPolyTree, area, InternalClipper, PointInPolygonResult,
   PolyTree64, PolyPath64, ClipType, FillRule, type Path64, type Paths64,
 } from '../src';
 
@@ -40,7 +40,7 @@ function treeOf(ct: ClipType, fr: FillRule, subject: Paths64, clip: Paths64): Po
 }
 
 describe('PolyTree nesting of touching paths', () => {
-  test.fails('an outer path sharing an edge with another stays at the top level', () => {
+  test('an outer path sharing an edge with another stays at the top level', () => {
     // two triangles sharing the edge (100,37)-(104,39); every vertex of the
     // smaller lies on the larger but one, which is outside it, and the
     // midpoint of its bounds lies on the larger
@@ -50,7 +50,7 @@ describe('PolyTree nesting of touching paths', () => {
     expect(nodes(tree)).toEqual([[0, 26], [0, 4]]);
   });
 
-  test.fails('outer paths that rounding leaves slightly crossing are not nested', () => {
+  test('outer paths that rounding leaves slightly crossing are not nested', () => {
     // the two result triangles touch along a line; rounding the computed
     // points leaves them crossing by a unit, so containment can't be told,
     // and the orientation decides
@@ -100,7 +100,7 @@ describe('PolyTree nesting of touching paths', () => {
       expect(nodes(treeOf(ct, fr, subject, clip))).toEqual(expected);
     });
 
-  test.fails('random touching fans: every node has the orientation of its depth', () => {
+  test('random touching fans: every node has the orientation of its depth', () => {
     // fans of thin triangles around a point near a cell's corner, cut by the
     // cell, with a real hole and island every third trial
     let state = 7;
@@ -129,5 +129,42 @@ describe('PolyTree nesting of touching paths', () => {
       expect(n2.reduce((sum, [, a]) => sum + a, 0)).toBe(flat.reduce((sum, p) => sum + area(p), 0));
     }
     expect(wrong).toBe(0);
+  });
+});
+
+describe('path1PlaceInPath2', () => {
+  const square = path(0, 0, 4, 0, 4, 4, 0, 4);
+  const place = (p: Path64) => InternalClipper.path1PlaceInPath2(p, square);
+
+  test('touching paths', () => {
+    // inscribed, every vertex on a side of the square
+    expect(place(path(2, 0, 4, 2, 2, 4, 0, 2))).toBe(PointInPolygonResult.IsInside);
+    // half of the square, cut along its diagonal
+    expect(place(path(0, 0, 4, 0, 4, 4))).toBe(PointInPolygonResult.IsInside);
+    // sharing the bottom side, from outside
+    expect(place(path(4, 0, 0, 0, 2, -3))).toBe(PointInPolygonResult.IsOutside);
+    // sharing part of the bottom side, with a vertex of the square on its edge
+    expect(place(path(-2, 0, 2, 0, 0, -2))).toBe(PointInPolygonResult.IsOutside);
+    // along the square's outline: not inside it
+    expect(place(square)).toBe(PointInPolygonResult.IsOutside);
+  });
+
+  test('a vertex strictly inside or outside', () => {
+    expect(place(path(1, 1, 3, 1, 2, 3))).toBe(PointInPolygonResult.IsInside);
+    expect(place(path(5, 5, 6, 5, 6, 6))).toBe(PointInPolygonResult.IsOutside);
+  });
+
+  test('crossing paths', () => {
+    // one vertex inside, the next outside, the rest on the square
+    expect(place(path(0, 0, 2, 1, 2, -1))).toBe(PointInPolygonResult.IsOn);
+  });
+
+  test('coordinates beyond 2^51', () => {
+    const big = 2 ** 52;
+    const sq = path(0, 0, big, 0, big, big, 0, big);
+    expect(InternalClipper.path1PlaceInPath2(path(big / 2, 0, big, big / 2, big / 2, big, 0, big / 2), sq))
+      .toBe(PointInPolygonResult.IsInside);
+    expect(InternalClipper.path1PlaceInPath2(path(big, 0, 0, 0, big / 2, -big / 2), sq))
+      .toBe(PointInPolygonResult.IsOutside);
   });
 });

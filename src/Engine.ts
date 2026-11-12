@@ -1552,6 +1552,46 @@ protected executeInternal(ct: ClipType, fillRule: FillRule): void {
     return InternalClipper.path2ContainsPath1(this.getCleanPath(op1), this.getCleanPath(op2)); // (#973)
   }
 
+  // Whether owner can be outrec's parent in a PolyTree. Outer paths and holes
+  // alternate down the tree, so the parent of a path has the opposite
+  // orientation and contains it. Paths of one result don't cross, but they
+  // may touch, so containment is decided from vertices and edges
+  // (InternalClipper.path1PlaceInPath2). Where rounding has left the two
+  // paths crossing, containment is undefined and the orientation decides.
+  private isOwnerOf(owner: OutRec, outrec: OutRec): boolean {
+    if ((ClipperBase.areaOutPt(outrec.pts!) > B0) === (ClipperBase.areaOutPt(owner.pts!) > B0)) return false;
+    // as in path1InsidePath2, two consecutive vertices on the same side decide
+    let pip = PointInPolygonResult.IsOn;
+    let op = outrec.pts!;
+    do {
+      switch (this.pointInOpPolygon(op.pt, owner.pts!)) {
+        case PointInPolygonResult.IsOutside:
+          if (pip === PointInPolygonResult.IsOutside) return false;
+          pip = PointInPolygonResult.IsOutside;
+          break;
+        case PointInPolygonResult.IsInside:
+          if (pip === PointInPolygonResult.IsInside) return true;
+          pip = PointInPolygonResult.IsInside;
+          break;
+        default:
+          break;
+      }
+      op = op.next!;
+    } while (op !== outrec.pts);
+    return InternalClipper.path1PlaceInPath2(ClipperBase.opPath(outrec.pts!),
+      ClipperBase.opPath(owner.pts!)) !== PointInPolygonResult.IsOutside;
+  }
+
+  private static opPath(op: OutPt): Path64 {
+    const result: Path64 = [];
+    let op2 = op;
+    do {
+      result.push(op2.pt);
+      op2 = op2.next!;
+    } while (op2 !== op);
+    return result;
+  }
+
   private pointInOpPolygon(pt: Point64, op: OutPt): PointInPolygonResult {
     if (op === op.next || op.prev === op.next) {
       return PointInPolygonResult.IsOutside;
@@ -2983,7 +3023,7 @@ protected buildTree(polytree: PolyPathBase, solutionOpen: Paths64): void {
       if (outrec.owner.pts !== null && this.checkBounds(outrec.owner) &&
         // Fast reject: a container must contain the child's bounds.
         this.containsRect(outrec.owner.bounds, outrec.bounds) &&
-        this.path1InsidePath2(outrec.pts!, outrec.owner.pts!)) break;
+        this.isOwnerOf(outrec.owner, outrec)) break;
       outrec.owner = outrec.owner.owner;
     }
 
@@ -3268,7 +3308,7 @@ private checkSplitOwner(outrec: OutRec, splits: number[]): boolean {
 
       if (!this.checkBounds(split) ||
           !this.containsRect(split.bounds, outrec.bounds) ||
-          !this.path1InsidePath2(outrec.pts!, split.pts!)) continue;
+          !this.isOwnerOf(split, outrec)) continue;
 
       if (!this.isValidOwner(outrec, split)) { // split is owned by outrec (#957)
         split.owner = outrec.owner;

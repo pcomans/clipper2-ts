@@ -645,6 +645,107 @@ function path2ContainsPath1(path1: Path64, path2: Path64): boolean {
   return icPointInPolygon(midPt, path2) !== PointInPolygonResult.IsOutside;
 }
 
+// Where path1 lies relative to path2, for paths that may touch: IsInside,
+// IsOutside, or IsOn when that can't be told because the paths cross.
+// Paths that don't cross meet only along shared edges and where a vertex of
+// one lies on the other. Then path1's vertices, and the pieces of its edges
+// between path2's vertices lying on them, are each on path2 or strictly inside
+// or strictly outside it, and those not on path2 all agree. Each edge piece is
+// tested at its midpoint, in doubled coordinates so that it stays an integer.
+// A path lying wholly along path2 is not inside it. Points both inside and
+// outside mean the paths cross (after rounding).
+function path1PlaceInPath2(path1: Path64, path2: Path64): PointInPolygonResult {
+  // as in path2ContainsPath1, two consecutive vertices on the same side decide
+  let pip = PointInPolygonResult.IsOn;
+  let inside = false, outside = false;
+  for (const pt of path1) {
+    switch (icPointInPolygon(pt, path2)) {
+      case PointInPolygonResult.IsOutside:
+        if (pip === PointInPolygonResult.IsOutside) return PointInPolygonResult.IsOutside;
+        pip = PointInPolygonResult.IsOutside;
+        outside = true;
+        break;
+      case PointInPolygonResult.IsInside:
+        if (pip === PointInPolygonResult.IsInside) return PointInPolygonResult.IsInside;
+        pip = PointInPolygonResult.IsInside;
+        inside = true;
+        break;
+      default:
+        break;
+    }
+  }
+  if (inside && outside) return PointInPolygonResult.IsOn;
+  const len = path1.length;
+  if (len === 0) return PointInPolygonResult.IsOutside;
+  let path2X2: Path64 | null = null;
+  let small = true;
+  let a = path1[len - 1];
+  for (let i = 0; i < len && !(inside && outside); i++) {
+    const b = path1[i];
+    if (a.x === b.x && a.y === b.y) continue;
+    // path2's vertices strictly between a and b, ordered from a to b
+    const alongX = a.x !== b.x;
+    const pts: Point64[] = [a];
+    for (const pt of path2) {
+      if ((alongX ? (pt.x < a.x) !== (pt.x < b.x) && pt.x !== a.x && pt.x !== b.x :
+          (pt.y < a.y) !== (pt.y < b.y) && pt.y !== a.y && pt.y !== b.y) &&
+          crossProductSign(a, b, pt) === 0) pts.push(pt);
+    }
+    pts.push(b);
+    if (pts.length > 3) {
+      const dir = alongX ? Math.sign(b.x - a.x) : Math.sign(b.y - a.y);
+      pts.sort((p, q) => dir * (alongX ? p.x - q.x : p.y - q.y));
+    }
+    if (path2X2 === null) {
+      path2X2 = path2.map(pt => ({ x: pt.x * 2, y: pt.y * 2 }));
+      small = isSmallForDoubling(path1) && isSmallForDoubling(path2);
+    }
+    for (let j = 1; j < pts.length; j++) {
+      const res = midPointInPolygon(pts[j - 1], pts[j], path2X2, small);
+      if (res === PointInPolygonResult.IsInside) inside = true;
+      else if (res === PointInPolygonResult.IsOutside) outside = true;
+    }
+    a = b;
+  }
+  if (inside && outside) return PointInPolygonResult.IsOn;
+  return inside ? PointInPolygonResult.IsInside : PointInPolygonResult.IsOutside;
+}
+
+// whether the midpoint of p and q lies inside polygonX2, a polygon in
+// doubled coordinates (exact in plain numbers while coordinates are below
+// 2^51 in magnitude, so differences of doubled ones stay safe integers)
+function midPointInPolygon(p: Point64, q: Point64, polygonX2: Path64, small: boolean): PointInPolygonResult {
+  if (small) return icPointInPolygon({ x: p.x + q.x, y: p.y + q.y }, polygonX2);
+  return bigPointInPolygon(BigInt(p.x) + BigInt(q.x), BigInt(p.y) + BigInt(q.y), polygonX2);
+}
+
+const MaxCoordForDoubling = 2 ** 51;
+
+function isSmallForDoubling(path: Path64): boolean {
+  for (const pt of path)
+    if (Math.abs(pt.x) >= MaxCoordForDoubling || Math.abs(pt.y) >= MaxCoordForDoubling) return false;
+  return true;
+}
+
+// winding-number point in polygon in BigInt, for doubled coordinates beyond
+// the safe integer range (polygon coordinates are exact even integers)
+function bigPointInPolygon(x: bigint, y: bigint, polygon: Path64): PointInPolygonResult {
+  let winding = 0;
+  const len = polygon.length;
+  for (let i = 0; i < len; i++) {
+    const ax = BigInt(polygon[i].x), ay = BigInt(polygon[i].y);
+    const j = i + 1 === len ? 0 : i + 1;
+    const bx = BigInt(polygon[j].x), by = BigInt(polygon[j].y);
+    const cross = (bx - ax) * (y - ay) - (x - ax) * (by - ay);
+    if (cross === B0 && (ax < bx ? ax <= x && x <= bx : bx <= x && x <= ax) &&
+        (ay < by ? ay <= y && y <= by : by <= y && y <= ay)) return PointInPolygonResult.IsOn;
+    if (ay <= y) {
+      if (by > y && cross > B0) winding++;
+    } else if (by <= y && cross < B0) winding--;
+  }
+  return winding !== 0 ? PointInPolygonResult.IsInside : PointInPolygonResult.IsOutside;
+}
+
 // Plain const object replaces the namespace. External callers use InternalClipper.foo()
 // unchanged; tsc emits a simple object literal instead of an IIFE.
 export const InternalClipper = {
@@ -682,6 +783,7 @@ export const InternalClipper = {
   getClosestPtOnSegment,
   pointInPolygon: icPointInPolygon,
   path2ContainsPath1,
+  path1PlaceInPath2,
 }
 
 // Backward-compatible type namespace for consumers who used InternalClipper.UInt128Struct as a type.
