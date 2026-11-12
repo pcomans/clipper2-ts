@@ -1,6 +1,6 @@
 {
   "name": "clipper2-ts",
-  "version": "2.0.1-19",
+  "version": "2.0.1-19-polytree.1",
   "description": "TypeScript port of Clipper2 polygon clipping, boolean operations, offsetting, and triangulation library",
   "type": "module",
   "main": "dist/index.js",
@@ -25,7 +25,6 @@
     "lint:fix": "eslint src/**/*.ts --fix",
     "serve": "npx serve .",
     "prepublishOnly": "npm run build && npm test",
-    "prepare": "npm run build",
     "predeploy": "npm run build && rm -rf .gh-pages && mkdir -p .gh-pages/dist && cp -r dist/* .gh-pages/dist/ && sed 's|../dist/|./dist/|g' example/index.html > .gh-pages/index.html",
     "deploy": "gh-pages -d .gh-pages"
   },

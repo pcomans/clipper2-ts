@@ -1,0 +1,17 @@
+/*******************************************************************************
+* Author    :  Angus Johnson
+* Date      :  2025
+* Website   :  https://www.angusj.com
+* Copyright :  Angus Johnson 2010-2025
+* License   :  https://www.boost.org/LICENSE_1_0.txt
+*******************************************************************************/
+export { type Point64, type PointD, type Path64, type PathD, type Paths64, type PathsD, type Rect64, type RectD, ClipType, PathType, FillRule, PointInPolygonResult, type ZCallback64, type ZCallbackD, InternalClipper, Point64Utils, PointDUtils, Rect64Utils, RectDUtils, PathUtils, PathsUtils, InvalidRect64, InvalidRectD } from './Core.js';
+export { VertexFlags, Vertex, LocalMinima, createLocalMinima, // deprecated: use new LocalMinima() directly
+type IntersectNode, createIntersectNode, OutPt, JoinWith, HorzPosition, OutRec, HorzSegment, HorzJoin, Active, ClipperEngine, ReuseableDataContainer64, PolyPathBase, PolyPath64, PolyPathD, PolyTree64, PolyTreeD, ClipperBase, Clipper64, ClipperD } from './Engine.js';
+export { JoinType, EndType, ClipperOffset } from './Offset.js';
+export { OutPt2, RectClip64, RectClipLines64 } from './RectClip.js';
+export { Minkowski } from './Minkowski.js';
+export { TriangulateResult, Delaunay } from './Triangulation.js';
+export * as Clipper from './Clipper.js';
+export { intersect, intersectD, union, unionD, difference, differenceD, xor, xorD, booleanOp, booleanOpWithPolyTree, booleanOpD, booleanOpDWithPolyTree, inflatePaths, inflatePathsD, rectClip, rectClipLines, minkowskiSum, minkowskiSumD, minkowskiDiff, minkowskiDiffD, area, areaPaths, areaD, areaPathsD, isPositive, isPositiveD, getBounds, getBoundsPaths, getBoundsD, getBoundsPathsD, makePath, makePathD, scalePath64, scalePaths64, scalePathD, scalePathsD, translatePath, translatePaths, translatePathD, translatePathsD, reversePath, reversePathD, reversePaths, reversePathsD, stripDuplicates, trimCollinear, trimCollinearD, pointInPolygon, pointInPolygonD, ellipse, ellipseD, simplifyPath, simplifyPaths, simplifyPathD, simplifyPathsD, ramerDouglasPeucker, ramerDouglasPeuckerPaths, ramerDouglasPeuckerD, ramerDouglasPeuckerPathsD, triangulate, triangulateD, polyTreeToPaths64, polyTreeToPathsD } from './Clipper.js';
+//# sourceMappingURL=index.d.ts.map
