@@ -2,6 +2,18 @@
 
 All changes to this project will be documented in this file
 
+## Unreleased (fork: fix/polytree-nesting)
+
+### Fixed
+
+- `Engine`: `PolyTree` nesting of result paths that touch. `buildTree` and `checkSplitOwner` accept an owner only if it has the opposite orientation and the path is not outside it, deciding containment of touching paths from their vertices and the pieces of their edges between the owner's vertices (`InternalClipper.path1PlaceInPath2`) instead of the midpoint of the path's bounds. An outer path that shares an edge with another is no longer nested in it as a hole
+- `Engine`: a hole whose owner chain from the sweep misses its parent (it touches the parent where the sweep closes it) is no longer left at the top of the tree: its parent is looked for among all result paths
+
+### Known limitations
+
+- An outer path (island) that touches its hole where the sweep closes it can still be left at the top of the tree instead of inside the hole; only holes are searched for a missing parent. Reproducer: `tests/polytree-nesting.test.ts`, "known limitation" (Xor, NonZero)
+- Where rounding leaves two result paths crossing, containment is undefined and the orientation decides
+
 ## [2.0.1-19]
 
 ### Fixed
