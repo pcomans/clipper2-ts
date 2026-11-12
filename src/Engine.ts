@@ -175,6 +175,7 @@ export class OutRec {
   public isOpen: boolean = false;
   public splits: number[] | null = null;
   public recursiveSplit: OutRec | null = null;
+  public ownerSearched: boolean = false;
 }
 
 export class HorzSegment {
@@ -3027,14 +3028,52 @@ protected buildTree(polytree: PolyPathBase, solutionOpen: Paths64): void {
       outrec.owner = outrec.owner.owner;
     }
 
+    // A hole always has a parent. The owner chain a path starts with comes
+    // from the sweep (the nearest output edge to its left as the path was
+    // made or closed), and where a hole touches its parent there, the parent
+    // can be missing from the chain. Then look for the parent among all
+    // paths. (The path found is placed first; should that place outrec too,
+    // outrec stays there.)
+    if (outrec.owner === null && !outrec.ownerSearched &&
+        ClipperBase.areaOutPt(outrec.pts!) < B0) {
+      outrec.ownerSearched = true;
+      const owner = this.findOwnerOfHole(outrec);
+      if (owner !== null) {
+        if (owner.polypath === null) this.recursiveCheckOwners(owner, polypath);
+        if (outrec.polypath !== null) return;
+        outrec.owner = owner;
+      }
+    }
+
     if (outrec.owner !== null) {
       if (outrec.owner.polypath === null) {
         this.recursiveCheckOwners(outrec.owner, polypath);
+        if (outrec.polypath !== null) return; // placed meanwhile
       }
       outrec.polypath = outrec.owner.polypath!.addChild(outrec.path); 
     } else {
       outrec.polypath = polypath.addChild(outrec.path);
     }
+  }
+
+  // the smallest path that can be outrec's parent (isOwnerOf), or null
+  private findOwnerOfHole(outrec: OutRec): OutRec | null {
+    let result: OutRec | null = null;
+    let resultArea = B0;
+    // nb: checkBounds can add OutRecs, so the length is not static
+    for (let i = 0; i < this.outrecList.length; i++) {
+      const candidate = this.outrecList[i];
+      if (candidate === outrec || candidate.pts === null || candidate.isOpen ||
+        !this.checkBounds(candidate) ||
+        !this.containsRect(candidate.bounds, outrec.bounds) ||
+        !this.isOwnerOf(candidate, outrec)) continue;
+      const area = ClipperBase.areaOutPt(candidate.pts!);
+      if (result === null || area < resultArea) {
+        result = candidate;
+        resultArea = area;
+      }
+    }
+    return result;
   }
 
   protected cleanCollinear(outrec: OutRec | null): void {

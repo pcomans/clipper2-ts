@@ -64,7 +64,7 @@ describe('PolyTree nesting of touching paths', () => {
     for (const [, a] of n) expect(a).toBeGreaterThan(0);
   });
 
-  test.fails.each([
+  test.each([
     ['union, even-odd', ClipType.Union, FillRule.EvenOdd,
       [path(1, 0, 0, 3, 1, 3), path(1, 1, 1, 0, 1, 2, 0, 4), path(1, 3, 0, 2, 2, 1)], [],
       [[0, 2], [1, -1]]],
@@ -129,6 +129,16 @@ describe('PolyTree nesting of touching paths', () => {
       expect(n2.reduce((sum, [, a]) => sum + a, 0)).toBe(flat.reduce((sum, p) => sum + area(p), 0));
     }
     expect(wrong).toBe(0);
+  });
+
+  test.fails('known limitation: an island touching its hole where the sweep closes it is left at the top level', () => {
+    // the island's owner chain from the sweep never contains the hole, and
+    // only holes (which must have a parent) are searched for one
+    const tree = treeOf(ClipType.Xor, FillRule.NonZero,
+      [path(0, 6, 3, 6, 10, 0), path(0, 6, 1, 6, 0, 8), path(9, 0, 9, 0, 9, 3),
+        path(0, 7, 6, 7, 0, 9), path(3, 4, 9, 1, 7, 10)],
+      [path(2, 5, 5, 3, 1, 8)]);
+    expect(nodes(tree)).toEqual([[0, 43], [1, -9.5], [2, 1]]);
   });
 });
 
